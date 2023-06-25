@@ -1,0 +1,495 @@
+---
+title: "Assignment 4"
+author: "Michael Fry 300570669"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load the "readxl" package to read in data from an Excel file.
+library(readxl)
+# Read in the heart disease dataset.
+hd <- read_xlsx("Framingham Heart Study.xlsx", sheet = "Data", na = "NA")
+```
+
+## Question 1 
+
+### a) 
+
+```{r}
+library(pander)
+
+# Identify variables with missing data
+vars_with_missing <- names(hd)[colSums(is.na(hd)) > 0]
+
+# Create a table of missing data
+missing_data_table <- data.frame(Variable = vars_with_missing, 
+          Frequency = colSums(is.na(hd[, vars_with_missing])),
+          Proportion = round(colSums(is.na(hd[, vars_with_missing])) / nrow(hd), 5))
+
+# Sort the table by the proportion of missing data (in descending order)
+missing_data_table <- missing_data_table[order(-missing_data_table$Proportion), ]
+missing_data_table <- t(missing_data_table)
+
+# Print the table
+pander(missing_data_table)
+```
+
+
+```{r}
+pander(missing_data_table[,1])
+```
+
+The variable with the highest level of missing data is GLUC, with 388 missing observations, and proportion of missing observations of 0.09151 or 9.2% missing observations.
+
+
+### b) 
+
+```{r}
+# Create a new data frame (hd.complete) without missing data
+hd.complete <- hd[complete.cases(hd), ]
+
+# Calculate the proportion of removed observations
+proportion_removed <- round((nrow(hd) - nrow(hd.complete)) / nrow(hd), 5)
+```
+The proportion of people that have been removed from the data set is `r proportion_removed` or `r round(proportion_removed*100,2)` percent.
+
+### c)
+
+```{r}
+# Create the SBP_CAT variable and categorize SBP readings
+hd.complete$SBP_CAT <- cut(hd.complete$SBP, 
+          breaks = c(0, 120, 130, 140, 180, Inf),
+          labels = c("normal", "elevated", "high_stage_1", 
+                     "high_stage_2", "hypertensive"), right = FALSE)
+
+# Create a table showing the count of observations in each blood pressure range
+table_SBP_CAT <- table(hd.complete$SBP_CAT)
+
+# Print the table
+pander(table_SBP_CAT)
+
+```
+
+### d) 
+
+There are multiple times when transforming SBP to a categorical variable could lead to a better fit for a regression model. 
+
+When the relationship between SBP and the response variable is non-linear. By grouping SBP values into categories based on clinically relevant thresholds or risk levels, the regression model can better capture the relationship between SBP and the response variable
+
+When there are irregular or sparce data in the SBP variable. When there are significant gaps in levels of numeric SBP, categorizing SBP can address the issue by assigning all values to a specific category which increases the number of observations in each group.
+
+When outliers are present. Numeric variables like SBP may contain extreme values that deviate significantly from the overall model By grouping SBP values into categories, outliers are contained within groups, reducing their influence on the model.
+
+## Question 2 
+
+### a) 
+
+```{r}
+library(car)
+
+# Fit the logistic regression model
+logistic_model <- glm(factor(HD_RISK) ~ factor(SEX) + AGE + factor(EDUC) + 
+                        CIG + CHOL + SBP + DBP + GLUC+ BMI, 
+                        data = hd.complete, family = binomial)
+
+# Calculate the VIF for predictors
+vif_values <- vif(logistic_model)
+
+# Round the VIF values to 3 decimal places
+vif_values <- round(vif_values, 3)
+
+# Print the VIF values
+pander(vif_values)
+
+```
+All the predictors have VIF values well below the threshold of 10, and all are even well below a conservative cutoff of 5, suggesting that there is no evidence of significant multicollinearity among the predictors in the model.
+
+### b) 
+
+```{r}
+model_summary <- summary(logistic_model)
+
+# Print the model output table
+model_summary
+```
+$log(p/1-p) = -8.9626(intercept) + 0.5444 * SEX + 0.0634 * AGE - 0.1885 * Education_2 - 0.1969 *Education_3 - 0.0521 * Education_4 + 0.0195 * CIG + 0.0024 * CHOL + 0.0182 * SBP  - 0.0028 * DBP + 0.0072 * GLUC + 0.0067 * BMI$
+
+where:
+
+SEX represents the factor(SEX)1 (1 for male, 0 for female)
+
+AGE represents the age variable
+
+Education_2 represents the factor(EDUC)2 (2 for high school)
+
+Education_3 represents the factor(EDUC)3 (3 for some college)
+
+Education_4 represents the factor(EDUC)4 (4 for college graduate)
+
+CIG represents the cigarettes smoked per day variable
+
+CHOL represents the cholesterol level variable
+
+SBP represents the systolic blood pressure variable
+
+DBP represents the diastolic blood pressure variable
+
+GLUC represents the glucose level variable
+
+BMI represents the body mass index variable
+
+
+### c) 
+
+```{r}
+# Extract the Wald test statistics for SBP and DBP coefficients
+wald_sbp <- model_summary$coefficients["SBP", "Pr(>|z|)"]
+wald_dbp <- model_summary$coefficients["DBP", "Pr(>|z|)"]
+
+wald_sbp
+wald_dbp
+```
+Wald Test for SBP: 
+
+$H_{0}: \beta_{8} = 0$
+
+$H_{2}: \beta_{8} \ne 0$
+
+$z \approx \frac{0.003484}{0.018249} \approx 5.238$
+
+$p-value = 2 \times P(Z > |5.238|) \approx 1.63 \times 10^{-7}$
+
+As the p-value is much smaller than any reasonable significance level, we have sufficient evidence to suggest that Beta8 (SBP) is significantly different from 0, and there is a statistically significant relationship between SBP and HD_RISK, adjusting for all other variables.
+
+Wald Test for DBP
+
+$H_{0}: \beta_{9} = 0$
+
+$H_{2}: \beta_{9} \ne 0$
+
+$z \approx \frac{0.006385}{-0.002798} \approx -0.438$
+
+$p-value = 2 \times P(Z > |-0.438|) \approx 0.6612$
+
+As the p-value is much larger than any reasonable significance level, we have sufficient evidence to suggest that Beta9 (DBP) is not significantly different from 0, and there is not a statistically significant relationship between DBP and HD_RISK, adjusting for all other variables.
+
+
+### d) 
+
+To interpret the “effects” corresponding to the coefficient for SBP , we must exponentiate the estimated coefficient. 
+
+$\beta_{8} \approx 0.018249$
+
+$\exp(\beta_{8}) \approx 1.018417$
+
+An increase in SBP by one mmHg is associated with an estimated multiplicative change of 1.018417 (95% CI: (1.011, 1.025)) in the odds of 10-year risk of future coronary heart disease, adjusting for all other variables.
+
+```{r}
+pander(exp(confint.default(logistic_model, parm = 'SBP')))
+```
+Note: Estimate of Beta 8 is significantly larger than 1 as the 95% confidence interval for Beta 8 does not include 1.
+
+### e) 
+
+```{r}
+# Fit the logistic regression model with SBP_CAT
+logistic_model_cat <- glm(factor(HD_RISK) ~ factor(SEX) + AGE + 
+                            factor(EDUC) + CIG + CHOL +factor(SBP_CAT) + 
+                            DBP + GLUC + BMI, data = hd.complete, family = binomial)
+
+# Get the summary of the logistic regression model with SBP_CAT
+model_summary_cat <- summary(logistic_model_cat)
+
+# Print the model output table for the model with SBP_CAT
+print(model_summary_cat)
+
+```
+The p-value for the category "elevated" is approximately 0.147, indicating that there is no strong evidence to suggest a significant association between the "elevated" blood pressure range and the 10-year risk of CHD when compared to the "normal" systolic blood pressure.
+
+The p-value for the category "high_stage_1" is approximately 0.287, suggesting that there is no strong evidence of a significant association between the "high_stage_1" systolic blood pressure range and the 10-year risk of CHD when compared to the "normal" systolic blood pressure.
+
+The p-value for the category "high_stage_2" is approximately 0.001, indicating strong evidence of a significant association between the "high_stage_2" systolic blood pressure range and the 10-year risk of CHD when compared to the "normal" systolic blood pressure.
+
+The p-value for the category "hypertensive" is approximately 0.0001, suggesting strong evidence of a significant association between the "hypertensive" systolic blood pressure range and the 10-year risk of CHD when compared to the "normal" systolic blood pressure.
+
+These results align with the findings of Wu et al. (2015) you can clearly see that there is a relationship with the SBP and HD_RISK. The higher the SBP is compared to normal, the more significant the relationship with HD_RISK. These estimates increase with SBP indicating an alignment with that of Wu et al. (2015)
+
+### f)
+
+```{r}
+library(lmtest)
+library(zoo)
+# Perform the likelihood ratio test
+lr_test <- lrtest(logistic_model, logistic_model_cat)
+pander(lr_test)
+
+?lrtest
+```
+Since this p-value is less than the conventional significance level of 0.05, we can conclude that the model using SBP_CAT provides a significantly better fit than the model using SBP.
+
+Therefore, the model with SBP_CAT (model fit in part (e)) is considered to provide a better fit compared to the model with SBP (model from part (a)).
+
+### g) 
+
+```{r}
+library(ResourceSelection)
+
+# Perform the Hosmer-Lemeshow test for g = 10
+hoslem_10 <- hoslem.test(hd.complete$HD_RISK, logistic_model_cat$fitted.values, g = 10)
+hoslem_20 <- hoslem.test(hd.complete$HD_RISK, logistic_model_cat$fitted.values, g = 20)
+hoslem_30 <- hoslem.test(hd.complete$HD_RISK, logistic_model_cat$fitted.values, g = 30)
+
+hoslem_table <- data.frame(
+  G = c(10, 20, 30),
+  p_value = c(hoslem_10$p.value, hoslem_20$p.value, hoslem_30$p.value)
+)
+
+# Print the table
+pander(hoslem_table)
+
+```
+The P-Values for all tests are significantly above 0.05. This suggests that the model provides a reasonable fit to the data.
+
+## Question 3 
+
+### a) 
+
+```{r}
+library(MASS)
+
+
+
+forward.selection <- stepAIC(glm(factor(HD_RISK) ~ 1, family = "binomial", data = 
+              hd.complete), scope = list(upper = ~ factor(SEX) + AGE + factor(EDUC) 
+              + factor(SMOKER) + CIG + factor(BP_MED) + factor(STROKE) + 
+              factor(HYPER) + factor(DIAB) + CHOL + SBP + DBP + BMI + HR + GLUC, lower 
+               = ~1), direction = "forward", trace = FALSE )
+# Output the steps that were taken in the forward selection algorithm 
+# to produce the final model.
+pander(forward.selection$anova)
+
+backward.selection <- stepAIC(glm(factor(HD_RISK) ~ factor(SEX) + AGE + 
+                factor(EDUC) + factor(SMOKER) + CIG + factor(BP_MED) 
+                + factor(STROKE) + factor(HYPER) + factor(DIAB) + CHOL 
+                + SBP + DBP + BMI + HR + GLUC, family = "binomial", 
+                data = hd.complete), scope = list(upper = 
+              ~ factor(SEX) + AGE + factor(EDUC) + factor(SMOKER) + 
+                CIG + factor(BP_MED) + factor(STROKE) + 
+                    factor(HYPER) + factor(DIAB) + CHOL + SBP + DBP + BMI + 
+                HR + GLUC, lower = ~1), direction = "backward", trace = FALSE)
+
+# Output the steps that were taken in the backward selection algorithm 
+# to produce the final model.
+pander(backward.selection$anova)
+
+pander(forward.selection$coefficients)
+
+pander(backward.selection$coefficients)
+```
+
+Forward Selection Best Subset: 
+
+SEX, AGE, CIG, STROKE, HYPER, CHOL, SBP, GLUC
+
+Backwards Selection Best Subset: 
+
+SEX, AGE, CIG, STROKE, HYPER, CHOL, SBP, GLUC
+
+
+Both Forward and Backward selection algorithms included the same predictors in their optimal models. 
+
+
+
+
+### b) 
+
+```{r}
+library(bestglm)
+
+# Create a data frame with predictors and response variable
+predictors.for.bestglm <- data.frame(SEX = as.factor(hd.complete$SEX), 
+            AGE = hd.complete$AGE, EDUC =
+           as.factor(hd.complete$EDUC), SMOKER = as.factor(hd.complete$SMOKER), 
+          CIG = hd.complete$CIG, PB_MED = as.factor(hd.complete$BP_MED), 
+          STROKE = as.factor(hd.complete$STROKE), HYPER = as.factor(hd.complete$HYPER), 
+          DIAB = as.factor(hd.complete$DIAB), CHOL = hd.complete$CHOL, 
+          SBP = hd.complete$SBP,DBP = hd.complete$DBP,BMI = hd.complete$BMI, 
+          HR = hd.complete$HR, GLUC = hd.complete$GLUC, y = as.factor(hd.complete$HD_RISK))
+
+best.logistic.AIC <- bestglm(Xy = predictors.for.bestglm, family = binomial, 
+                             IC = "AIC", method = "exhaustive")
+## Show the top five models in terms of minimising AIC.
+pander(best.logistic.AIC$BestModels)
+
+# Find the best logistic regression model based on the predictors according 
+# to the criterion of  #minimising BIC.
+best.logistic.BIC <- bestglm(Xy = predictors.for.bestglm, family = binomial, 
+                             IC = "BIC", method = "exhaustive")
+## Show the top five models in terms of minimising BIC.
+pander(best.logistic.BIC$BestModels)
+
+```
+AIC Selection Best Subset: 
+
+SEX, AGE, CIG, STROKE, HYPER, CHOL, SBP, GLUC
+
+BIC Selection Best Subset: 
+
+SEX, AGE, CIG, STROKE, SBP, GLUC
+
+
+
+
+AIC and BIC selection criterion models are nested. AIC included all predictors that BIC did, with the addition of HYPER and CHOL. 
+
+The optimal model produced by AIC is identical to that of both the Forward and Backward selection algorithms in part (a).
+
+The difference in selection between BIC and AIC is likely down to the way the penalties are implemented between AIC and BIC with AIC being more lenient towards model complexity.
+
+
+### c) 
+
+Predictors identified in AIC selection above: 
+SEX AGE CIG STROKE HYPER CHOL SBP GLUC
+
+```{r}
+q3_dataset <- base::data.frame(HD_RISK = as.factor(hd.complete$HD_RISK), 
+              SEX = as.factor(hd.complete$SEX), 
+              AGE = hd.complete$AGE, CIG = hd.complete$CIG, STROKE = 
+              as.factor(hd.complete$STROKE), HYPER = as.factor(hd.complete$HYPER), 
+              CHOL = hd.complete$CHOL, SBP = hd.complete$SBP, 
+              GLUC = hd.complete$GLUC) 
+
+best_model_aic <- glm(factor(HD_RISK) ~ factor(SEX) + AGE + CIG + 
+                        factor(STROKE) + factor(HYPER) + CHOL + SBP + 
+                        GLUC, family = "binomial", data = hd.complete)
+
+# Specify the indices of the variables to be considered in predictive models for survival
+variable.indices <- 2 : 9
+
+# Produce a matrix that represents all possible combinations of variables.
+# Remove the first row, which is the null model (i.e., no predictors).
+all.comb <- expand.grid(as.data.frame(matrix(rep(0 : 1, 
+                        length(variable.indices)), nrow = 2)))[-1, ]
+
+
+
+library(caret)
+library(doParallel)
+
+# Load the "foreach" package to allow for splitting loops.
+library(foreach)
+
+# Specify the number of folds to be considered in k-fold cross-validation.
+folds <- 10
+# Specify the number of repetitions of cross-validation to carry out.
+nrep <- 20
+
+# Fire up 75% of cores for parallel processing.
+nclust <- makeCluster(detectCores() * 0.75)
+registerDoParallel(nclust)
+
+##############
+## Accuracy ##
+##############
+
+# Specify settings for repeated 10-fold cross-validation for accuracy. 
+# This includes specifying seeds for consistency when splitting across cores.
+
+fitControl <- trainControl(method = "repeatedcv", number = folds, repeats = nrep, 
+                           seeds = 1 :(folds * nrep + 1), classProbs = TRUE, 
+                           savePredictions = TRUE)
+
+# Save estimated accuracy and standard errors for each set of covariates.
+accuracy <- foreach(i = 1 : nrow(all.comb), .combine = "rbind", 
+                    .packages = "caret") %dopar%
+{
+c(i, unlist(train(as.formula(paste("make.names(HD_RISK) ~",
+paste(names(q3_dataset)[variable.indices][all.comb[i,] == 1], collapse = " + "))), data
+= q3_dataset, trControl = fitControl, method = "glm", family = "binomial", metric =
+"Accuracy")$results[c(2, 4)]))
+}
+
+rownames(accuracy) <- NULL
+
+##############################
+## Area under the ROC curve ##
+##############################
+
+# Specify settings for repeated 10-fold cross-validation for AUC.  
+# This includes specifying seeds for consistency when splitting across cores.
+
+fitControl <- trainControl(method = "repeatedcv", number = folds, repeats = nrep, 
+                           seeds = 1 :(folds * nrep + 1), summaryFunction = 
+                             twoClassSummary, classProbs = TRUE, savePredictions = TRUE)
+
+# Save estimated AUC and standard errors for each set of covariates.
+AUC <- foreach(i = 1 : nrow(all.comb), .combine = "rbind", .packages = "caret") %dopar%
+{
+c(i, unlist(train(as.formula(paste("make.names(HD_RISK) ~",
+paste(names(q3_dataset)[variable.indices][all.comb[i,] == 1], collapse = " + "))), data
+= q3_dataset, trControl = fitControl, method = "glm", family = "binomial", metric =
+"ROC")$results[c(2, 5)]))
+}
+
+rownames(AUC) <- NULL
+
+# Shut down cores.
+stopCluster(nclust)
+
+##############
+## Accuracy ##
+##############
+
+# View the model that maximises accuracy.
+max_accurace_variables <- 
+  names(q3_dataset)[variable.indices[all.comb[which.max(accuracy[, 2]), ] == 1]]
+
+##############################
+## Area under the ROC curve ##
+##############################
+
+# View the model that maximises AUC
+max_auc_variables <- 
+  names(q3_dataset)[variable.indices[all.comb[which.max(AUC[, 2]), ] == 1]]
+
+max_accurace_variables
+
+max_auc_variables
+```
+
+
+The optimal model identified with 20 repetition 10 fold cross validation maximizing accuracy included:
+
+SEX, AGE, CIG, HYPER, CHOL, SBP, GLUC
+
+This is identical to the BIC selection criterion with the addition of CHOL as a predictor.
+
+
+
+The optimal model identified with 20 repetition 10 fold cross validation maximizing AUC included:
+
+SEX, AGE, CIG, STROKE, HYPER, CHOL, SBP, GLUC.
+
+This is identical to the AIC selection criterion seen in part (b), as well as the Forward and Backwards subset selection methods in part (a).
+
+
+
+Maximizing accuracy and maximizing AUC as criteria for selecting the "best" models can lead to different outcomes because they focus on different aspects of model performance.
+
+Maximizing accuracy aims to find the model that predicts the outcome with the highest overall correctness. It considers the proportion of correctly classified instances and disregards the balance between true positives and true negatives.
+
+On the other hand, maximizing the Area Under the Receiver Operating Characteristic Curve (AUC) focuses on the trade-off between the true positive rate (sensitivity) and the false positive rate (1-specificity). AUC measures the ability of the model to discriminate between positive and negative instances and provides an overall assessment of the model's performance. 
+
+The differences in the "best" models identified by accuracy and AUC compared to the models in parts (a) and (b) can be attributed to the evaluation criteria and the dataset characteristics.
+
+In the case of accuracy, the inclusion of CHOL as a predictor in the optimal model suggests that it contributes to improving the overall correctness of the predictions, regardless of its specific impact on true positives or true negatives. This indicates that CHOL has an influence on the correct classification of instances, even if it may not be strongly associated with the outcome of interest.
+
+In the case of AUC, the inclusion of STROKE as a predictor suggests that it plays a significant role in the model's ability to discriminate between positive and negative instances. STROKE might not have been selected in the AIC or BIC models because its contribution to the overall goodness of fit was relatively small, but it has a noticeable impact on the model's discriminatory power.
+
+
+
+

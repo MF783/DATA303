@@ -1,0 +1,80 @@
+---
+title: "Markdown Demo"
+output:
+  pdf_document: default
+  #html_document: default
+---
+
+###  Advertising data set
+
+The `Advertising` data set contains `sales` of particular product in 200 different markets and budgets of advertisement for three different media: `TV`, `radio`, `newspaper`.
+
+```{r}
+Advertising  <- read.csv("Advertising.csv", header=TRUE)
+Advertising=Advertising[,-1]
+View(Advertising)
+```
+
+The data set `Advertising` has 200 rows and 4 columns. We print the first 6 rows and the last 6 rows.
+```{r}
+#head(Advertising)
+dim(Advertising)
+
+```
+
+
+
+
+## Demo1: Interpretation of coefficients
+
+* We wish to find relationship between `sales` and `TV`, `radio` and `newspaper`.
+* We fit the model `sales ~ TV + radio + newspaper` using the `lm()` function.
+
+```{r}
+
+model <- lm(sales ~ TV + radio + newspaper, data=Advertising)
+summary(model)
+```
+
+
+
+```{r}
+names(summary(model))
+```
+
+```{r}
+summary(model)$coefficients
+
+beta_TV <- summary(model)$coefficients[2,1]
+beta_TV
+```
+
+
+
+* An additional $1,000 spent on TV advertising is associated with selling approximately `r beta_TV` additional units of the product.
+
+
+
+## Demo 2: confidence interval
+
+
+We compute the 95% confidence intervals for the coefficient of TV.
+
+
+```{r}
+confint(model)
+
+confint_TV = confint(model)[2,]
+confint_TV
+```
+
+
+
+* An additional $1,000 spent on TV advertising is associated with selling approximately `r beta_TV` additional units of the product.
+The increase is as low as  `r confint_TV[1]` units and as high as `r  confint_TV[2]` with the 95% confidence level.
+
+
+
+
+
+
